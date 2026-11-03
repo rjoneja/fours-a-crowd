@@ -4,39 +4,37 @@ Four of them. Three share a link. Pick the one who doesn't belong.
 3 lives, 100 sets across five stages, easiest first. The first topic is Premier League footballers, 1992–2026; the topic name on the start screen comes from `theme` in `sets.json`.
 
 ```
-public/
-  index.html            the game (single file, no build step)
+public/                 static files, served directly by Cloudflare
+  index.html            the game
   data/sets.json        the question sets and topic name
   data/photos-source.json  which Commons photo to use for each player
   data/photos.json      built from photos-source.json (image link + credit)
   dashboard/index.html  standalone analytics dashboard
-functions/api/
-  event.js              POST /api/event   game → D1
-  stats.js              GET  /api/stats   dashboard numbers (token)
-  export.js             GET  /api/export  every pick as CSV (token)
+src/
+  worker.js             routes /api/* to the handlers below, everything else to public/
+  api/event.js          POST /api/event   game → D1
+  api/stats.js          GET  /api/stats   dashboard numbers (token)
+  api/export.js         GET  /api/export  every pick as CSV (token)
 schema.sql              D1 tables: players, sessions, attempts
 tools/validate-sets.mjs checks sets.json
 tools/build-photos.mjs  checks photo licences on Commons, writes photos.json
 ```
 
-## Deploy (Cloudflare Pages, connected to GitHub)
+## Deploy (Cloudflare Worker, connected to GitHub)
 
-1. Push this folder to a new GitHub repo, e.g. `fours-a-crowd`.
-2. Cloudflare → Storage & Databases → D1 → Create database `fours-a-crowd`. Copy its Database ID into `wrangler.toml`, commit, push.
-3. In the database's Console, paste and run `schema.sql`.
-4. Workers & Pages → Create → **Pages** tab (not Workers) → Import an existing Git repository → pick the repo.
-   - Framework preset: None
-   - Build command: `node tools/validate-sets.mjs && node tools/build-photos.mjs`
-   - Build output directory: `public`
-5. Project → Settings → Bindings: D1 database, variable `DB`, database `fours-a-crowd` (skip if already listed).
-6. Settings → Variables and Secrets: secret `DASHBOARD_TOKEN`, a long random string.
-7. Deployments → Retry the latest deployment so the binding and secret apply.
-8. Custom domains → add e.g. `foursacrowd.yourdomain.com`.
-9. Zero Trust → Access → Applications → Self-hosted: protect `/dashboard`, `/api/stats` and `/api/export` with an Allow policy for your email.
+It runs as a Worker with static assets. `wrangler.toml` holds the name, the D1 binding and the assets folder, so the dashboard only needs the build settings and the secret.
 
-Every push to `main` then rebuilds and deploys.
+1. D1 database `fours-a-crowd` created and `schema.sql` run in its Console. Its ID is in `wrangler.toml`.
+2. Workers & Pages → the `fours-a-crowd` Worker → Settings → Build:
+   - Build command: `npm run build`
+   - Deploy command: `npx wrangler deploy`
+3. Settings → Variables and Secrets → add secret `DASHBOARD_TOKEN`.
+4. Settings → Domains & Routes → add a custom domain, e.g. `foursacrowd.yourdomain.com`.
+5. Zero Trust → Access → Applications → Self-hosted: protect `/dashboard`, `/api/stats` and `/api/export` with an Allow policy for your email.
 
-Local: `npm install`, `npm run db:init:local`, put `DASHBOARD_TOKEN=devtoken` in `.dev.vars`, then `npm run dev` → http://localhost:8788 and /dashboard/.
+Every push to `main` builds and deploys.
+
+Local: `npm install`, `npm run db:init:local`, put `DASHBOARD_TOKEN=devtoken` in `.dev.vars`, then `npm run dev` → http://localhost:8787 and /dashboard/.
 
 ## What gets tracked
 

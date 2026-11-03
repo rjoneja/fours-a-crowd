@@ -1,8 +1,16 @@
 name = "fours-a-crowd"
+main = "src/worker.js"
 compatibility_date = "2025-06-01"
-pages_build_output_dir = "public"
+
+# The game, dashboard and data files
+[assets]
+directory = "public"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "fours-a-crowd"
 database_id = "17b25bf2-c8ea-4146-9bc5-06fece306d44"
+
+[observability]
+enabled = true
