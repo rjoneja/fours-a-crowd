@@ -3,6 +3,8 @@
 // photos-source.json maps each player to a Wikimedia Commons file, e.g.
 //   "Thierry Henry": "File:Thierry Henry 2012.jpg"
 // You can paste the file name, or the whole Commons page URL. Leave "" for players without a photo yet.
+// A value can also be a list of candidates in order of preference; the first one that is on Commons
+// with a free licence is used, e.g. "Kolo Touré": ["File:First choice.jpg", "File:Backup.jpg"]
 //
 // For each file this looks up the photographer and licence on Commons, keeps only freely licensed
 // images (CC BY, CC BY-SA, CC0, public domain, OGL and similar attribution licences), and writes the image URL + credit line the game shows.
@@ -50,23 +52,25 @@ export function toTitle(v) {
 export const stripHtml = (s = "") => s.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/\s+/g, " ").trim();
 
 export function parse(json, wanted) {
-  // wanted: Map(title -> player). Commons may normalise or redirect titles.
+  // wanted: Map(title -> { player, rank }). Commons may normalise or redirect titles.
   const alias = new Map();
   for (const n of json.query?.normalized || []) alias.set(n.to, n.from);
   for (const r of json.query?.redirects || []) alias.set(r.to, alias.get(r.from) || r.from);
   const out = {}, errors = [];
   for (const page of json.query?.pages || []) {
     const asked = wanted.has(page.title) ? page.title : alias.get(page.title) || page.title;
-    const player = wanted.get(asked);
-    if (!player) continue;
+    const w = wanted.get(asked);
+    if (!w) continue;
+    const { player, rank } = w;
     const info = page.imageinfo?.[0];
-    if (page.missing || !info) { errors.push(`${player}: "${asked}" not found on Commons`); continue; }
+    if (page.missing || !info) { errors.push({ player, rank, msg: `${player}: "${asked}" not found on Commons` }); continue; }
     const md = info.extmetadata || {};
     const licence = stripHtml(md.LicenseShortName?.value);
     const artist = stripHtml(md.Artist?.value) || "Unknown author";
-    if (!FREE.test(licence) || NOT_FREE.test(licence)) { errors.push(`${player}: licence "${licence || "unknown"}" isn't free to reuse; pick another photo`); continue; }
+    if (!FREE.test(licence) || NOT_FREE.test(licence)) { errors.push({ player, rank, msg: `${player}: licence "${licence || "unknown"}" on "${asked}" isn't free to reuse` }); continue; }
     const credit = `${artist.length > 40 ? artist.slice(0, 39) + "…" : artist} / ${licence}`;
-    out[player] = { src: info.thumburl || info.url, page: info.descriptionurl, credit, licence, file: page.title };
+    out[player] = out[player] || [];
+    out[player].push({ rank, photo: { src: info.thumburl || info.url, page: info.descriptionurl, credit, licence, file: page.title } });
   }
   return { out, errors };
 }
@@ -81,24 +85,29 @@ async function lookup(titles) {
 
 async function main() {
   const wanted = new Map();
-  for (const [player, v] of Object.entries(sorted)) { const t = toTitle(v); if (t) wanted.set(t, player); }
-  const missing = allPlayers.filter((p) => !sorted[p]);
+  const list = (v) => (Array.isArray(v) ? v : [v]).map(toTitle).filter(Boolean);
+  for (const [player, v] of Object.entries(sorted)) list(v).forEach((t, rank) => { if (!wanted.has(t)) wanted.set(t, { player, rank }); });
+  const missing = allPlayers.filter((p) => !list(sorted[p]).length);
 
-  const photos = {}, errors = [];
+  const photos = {}, candidates = {}, rawErrors = [];
   const titles = [...wanted.keys()];
   if (unverified) {
-    for (const [t, player] of wanted) photos[player] = { src: filePath(t) + "?width=480", page: "https://commons.wikimedia.org/wiki/" + encodeURIComponent(t.replace(/ /g, "_")), credit: "Wikimedia Commons", licence: "unverified", file: t };
+    for (const [t, { player, rank }] of wanted) if (rank === 0) photos[player] = { src: filePath(t) + "?width=480", page: "https://commons.wikimedia.org/wiki/" + encodeURIComponent(t.replace(/ /g, "_")), credit: "Wikimedia Commons", licence: "unverified", file: t };
     console.warn("UNVERIFIED: licences not checked and credits are generic. Run without --unverified before publishing.");
   } else try {
     for (let i = 0; i < titles.length; i += 50) {
       const { out, errors: e } = parse(await lookup(titles.slice(i, i + 50)), wanted);
-      Object.assign(photos, out); errors.push(...e);
+      for (const [p, c] of Object.entries(out)) (candidates[p] = candidates[p] || []).push(...c);
+      rawErrors.push(...e);
     }
   } catch (err) {
     console.warn(`Couldn't reach Wikimedia Commons (${err.message}). Keeping the existing photos.json.`);
     process.exit(0);
   }
 
+  for (const [p, c] of Object.entries(candidates)) photos[p] = c.sort((a, b) => a.rank - b.rank)[0].photo;
+  // Only report a player as a problem if none of their candidates worked.
+  const errors = rawErrors.filter((e) => !photos[e.player]).map((e) => e.msg);
   const ordered = Object.fromEntries(Object.entries(photos).sort(([a], [b]) => a.localeCompare(b)));
   writeFileSync(OUT, JSON.stringify(ordered, null, 2) + "\n");
   console.log(`photos.json: ${Object.keys(ordered).length} of ${allPlayers.length} players have a photo`);
