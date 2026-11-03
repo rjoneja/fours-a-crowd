@@ -24,8 +24,9 @@ tools/build-photos.mjs  checks photo licences on Commons, writes photos.json
 1. Push this folder to a new GitHub repo, e.g. `fours-a-crowd`.
 2. Cloudflare → Storage & Databases → D1 → Create database `fours-a-crowd`. Copy its Database ID into `wrangler.toml`, commit, push.
 3. In the database's Console, paste and run `schema.sql`.
-4. Workers & Pages → Create → Pages → Connect to Git → pick the repo.
-   - Build command: `npm install && node tools/validate-sets.mjs && node tools/build-photos.mjs`
+4. Workers & Pages → Create → **Pages** tab (not Workers) → Import an existing Git repository → pick the repo.
+   - Framework preset: None
+   - Build command: `node tools/validate-sets.mjs && node tools/build-photos.mjs`
    - Build output directory: `public`
 5. Project → Settings → Bindings: D1 database, variable `DB`, database `fours-a-crowd` (skip if already listed).
 6. Settings → Variables and Secrets: secret `DASHBOARD_TOKEN`, a long random string.
