@@ -7,12 +7,22 @@
     "Alexis Mac Allister": "File:Alexis Mac Allister WC 2022.jpg",
     "Alexis Sánchez": "File:Alexis Sánchez 2017.jpg",
     "Alisson Becker": "File:Alisson in 2018.jpg",
-    "Andy Carroll": "File:AndyCarrollSeptember2015.jpg",
+    "Andy Carroll": [
+      "File:AndyCarrollWHU.jpg",
+      "File:AndyCrarolldec2014.jpg",
+      "File:Andy Carroll warming up vs Bolton.jpg",
+      "File:Andy Carroll v Ipswich.jpg"
+    ],
     "Andy Cole": "File:Andy Cole in 2014.jpg",
     "Andy Robertson": "File:Andrew Robertson v Russia 2019 (cropped).jpg",
     "Ángel Di María": "File:NIG-ARG (5).jpg",
     "Arjen Robben": "File:Arjen Robben v Shakhtar 2015 (cropped).jpg",
-    "Ashley Cole": "File:ACole.jpg",
+    "Ashley Cole": [
+      "File:Ashley Cole LA Galaxy (cropped).jpg",
+      "File:Ashley Cole 4577.jpg",
+      "File:Ashley Cole Euro 2012 vs Italy.jpg",
+      "File:AshleyColeFinale12.jpg"
+    ],
     "Bacary Sagna": "File:Bacary Sagna 2012.jpg",
     "Bernardo Silva": "File:Bernardo Silva (Isto É Gozar Com Quem Trabalha, 2024).png",
     "Bruno Fernandes": "File:Bruno Fernandes Portugal, 2018.jpg",
@@ -31,10 +41,19 @@
     "Darwin Núñez": "File:Darwin Núñez (cropped).jpg",
     "David Beckham": "File:David Beckham UNICEF (cropped2).jpg",
     "David de Gea": "File:David de Gea 2017.jpg",
-    "David James": "File:DaJa.jpg",
+    "David James": [
+      "File:David James warmup 2010 FA Cup Final 2.jpg",
+      "File:David Jamesgoalkeeper2.jpg",
+      "File:David James taking goal kick.jpg"
+    ],
     "David Luiz": "File:David Luiz at Baku before 2019 UEFA Europe League Final.jpg",
     "David Silva": "File:David Silva 2017.jpg",
-    "Declan Rice": "File:1 declan rice arsenal 2025 (cropped).jpg",
+    "Declan Rice": [
+      "File:RC Lens - Arsenal FC (03-10-2023) 23.jpg",
+      "File:Hertha BSC vs. West Ham United 20190731 (191).jpg",
+      "File:The Prime Minister visits St George's Park on October 10, 2023 (cropped).jpg",
+      "File:Rice UEFA winner.jpeg"
+    ],
     "Dejan Kulusevski": "File:Sweden-Slovenia Nations League 2022-09-27 17 Kulusevski (cropped).jpg",
     "Dele Alli": "File:2020-03-10 Dele Alli (cropped).jpg",
     "Dennis Bergkamp": "File:Dennis Bergkamp 2014 (cropped).jpg",
@@ -105,7 +124,11 @@
     "Kevin De Bruyne": "File:Kevin De Bruyne 201807092.jpg",
     "Ki Sung-yueng": "File:240609 FC 서울 팬사인회 (기성용).jpg",
     "Kieran Tierney": "File:Kieran Tierney (close-up image).jpg",
-    "Kolo Touré": "File:Kolo Toure 8932.jpg",
+    "Kolo Touré": [
+      "File:Kolo Toure 9007.jpg",
+      "File:Kolo Touré-2013.jpg",
+      "File:Kolo with trophy cropped.jpg"
+    ],
     "Leandro Trossard": "File:RC Lens - Arsenal FC (03-10-2023) 26 (cropped).jpg",
     "Leighton Baines": "File:Baines Leighton 126176 (cropped).jpg",
     "Leroy Sané": "File:FC Red Bull Salzburg gegen Bayern München (2025-01-06 Testspiel) 22.jpg",
@@ -125,7 +148,9 @@
     "Michael Essien": "File:Chelsea Legends 1 Inter Forever 4 (28453496098) (cropped).jpg",
     "Michael Olise": "File:Olise 2022 crystal palace.jpg",
     "Michael Owen": "File:Michael Owen.jpg",
-    "Mikaël Silvestre": "File:Stade rennais - Le Havre AC 20150708 57.jpg",
+    "Mikaël Silvestre": [
+      "File:Mikael Silvestre 2009-09-20.jpg"
+    ],
     "Mikel Arteta": "File:Mikel Arteta 2021 (cropped).png",
     "Mohamed Salah": "File:Mohamed Salah 2018.jpg",
     "Moisés Caicedo": "File:Moises Caicedo 2022 (cropped).jpg",
@@ -140,7 +165,10 @@
     "Paolo Di Canio": "File:Paolo Di Canio Upton Park 11 September 2010 (cropped).jpg",
     "Park Ji-sung": "File:Park Ji-sung G20 Seoul Summit Ambassador (cropped).jpg",
     "Patrice Evra": "File:Patrice Evra (52472689279) (cropped).jpg",
-    "Patrick Vieira": "File:Patrick Vieira NYCFC.jpg",
+    "Patrick Vieira": [
+      "File:Lech - Manchester 116 (Patrick Vieira).jpg",
+      "File:Patrick Vieira - Inter Mailand (3).jpg"
+    ],
     "Paul Pogba": "File:Paul Pogba at the 2025 Cannes Film Festival 02.jpg",
     "Paul Scholes": "File:P Scholes.jpg",
     "Peter Schmeichel": "File:Peter Schmeichel 2012-01-25 001.jpg",
