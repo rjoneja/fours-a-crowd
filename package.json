@@ -1,0 +1,12 @@
+{
+  "name": "fours-a-crowd",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "db:init:local": "wrangler d1 execute fours-a-crowd --local --file=schema.sql",
+    "db:init": "wrangler d1 execute fours-a-crowd --remote --file=schema.sql",
+    "photos": "node tools/build-photos.mjs",
+    "deploy": "wrangler pages deploy public --project-name fours-a-crowd"
+  },
+  "devDependencies": { "wrangler": "^3.100.0" }
+}

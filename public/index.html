@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Four's a Crowd</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Four of them. Three share a link. Find the one who doesn't belong.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen matchday board — scoreboard strip, 2x2 sticker cards on mown turf, verdict sheet slides up over the pitch. Deliberately single dark look (floodlit pitch). */
+:root{
+  --turf:#0c3a2a; --turf-2:#0f4532; --chalk:#eef3ea; --chalk-dim:#a9c2b3;
+  --flood:#f2d64b; --card:#f7f8f3; --ink:#122019; --ink-2:#4f6258;
+  --red:#e0483a; --line:rgba(238,243,234,.16);
+  --display:"Anton","Impact","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+.game{display:flex;flex-direction:column;gap:16px}
+body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{
+  margin:0;font-family:var(--body);color:var(--chalk);background:var(--turf);
+  background-image:repeating-linear-gradient(90deg,var(--turf) 0 64px,var(--turf-2) 64px 128px);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:720px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 24px;box-sizing:border-box;gap:16px}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--flood);outline-offset:3px}
+
+/* Scoreboard */
+.board{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;
+  background:rgba(4,18,12,.72);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.stage{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:13px;color:var(--flood)}
+.qline{font-family:var(--display);font-size:26px;line-height:1.05;letter-spacing:.01em}
+.qline small{font-family:var(--cond);font-size:15px;color:var(--chalk-dim);letter-spacing:.04em;margin-left:6px}
+.lives{display:flex;gap:6px;align-items:center}
+.ball{width:30px;height:30px;position:relative}
+.ball svg{width:100%;height:100%;display:block;transition:transform .2s}
+.ball.popped svg{opacity:.18;filter:grayscale(1);transform:scale(.8)}
+.ball.popping svg{animation:pop .5s ease-out forwards}
+.ball .shard{position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:2px;background:var(--chalk);
+  animation:shard .55s ease-out forwards}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.45)}55%{transform:scale(.4);opacity:.9}100%{transform:scale(.8);opacity:.18;filter:grayscale(1)}}
+@keyframes shard{to{transform:translate(var(--dx),var(--dy)) rotate(200deg);opacity:0}}
+.scoreline{grid-column:1/-1;display:flex;gap:14px;font-family:var(--cond);font-size:14px;color:var(--chalk-dim);letter-spacing:.04em;border-top:1px solid var(--line);padding-top:8px}
+.scoreline b{color:var(--chalk);font-weight:700;font-variant-numeric:tabular-nums}
+.progress{flex:1;height:6px;align-self:center;background:var(--line);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--flood);width:0;transition:width .4s}
+
+.prompt{font-family:var(--cond);font-size:18px;font-weight:600;letter-spacing:.03em;text-align:center;color:var(--chalk)}
+
+/* Cards */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{appearance:none;border:0;padding:0;background:var(--card);color:var(--ink);border-radius:8px;overflow:hidden;
+  display:flex;flex-direction:column;text-align:left;box-shadow:0 2px 0 rgba(0,0,0,.25),0 10px 24px rgba(0,0,0,.28);
+  transition:transform .15s ease,box-shadow .15s ease;position:relative;min-width:0}
+.card:hover:not(:disabled){transform:translateY(-3px) rotate(-.4deg)}
+.card:nth-child(even):hover:not(:disabled){transform:translateY(-3px) rotate(.4deg)}
+.card:disabled{cursor:default}
+.face{aspect-ratio:4/4.3;max-width:100%;position:relative;display:grid;place-items:center;overflow:hidden}
+.face img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;position:absolute;inset:0}
+.mono{font-family:var(--display);font-size:clamp(44px,12vw,78px);color:rgba(255,255,255,.94);letter-spacing:.02em;text-shadow:0 3px 0 rgba(0,0,0,.18)}
+.face::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 2px,transparent 2px 9px)}
+.name{font-family:var(--cond);font-weight:700;font-size:clamp(16px,4.2vw,20px);line-height:1.1;padding:10px 12px 12px;text-transform:uppercase;letter-spacing:.02em;
+  border-top:3px solid var(--ink)}
+.credit{position:absolute;right:4px;bottom:3px;font-size:9px;color:#fff;background:rgba(0,0,0,.45);padding:1px 4px;border-radius:3px;z-index:2}
+.card.wrong{animation:shake .4s}
+.card.wrong::before{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:84px;color:var(--red);background:rgba(247,248,243,.7);z-index:3;font-family:var(--display)}
+.card.right{box-shadow:0 0 0 4px var(--flood),0 10px 24px rgba(0,0,0,.3)}
+.card.dim{opacity:.55}
+.name.hidden{color:var(--ink-2);font-style:italic;text-transform:none;letter-spacing:0}
+.name.revealed{animation:reveal .35s ease-out}
+@keyframes reveal{from{background:var(--flood)}}
+.face.photo{background:#20302a!important}
+.credits{font-size:12px;color:var(--ink-2);line-height:1.5;border-top:1px solid #dde3dc;padding-top:10px}
+.credits a{color:inherit}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+
+/* Sheets */
+.scrim{position:fixed;inset:0;background:rgba(3,14,9,.62);display:flex;align-items:flex-end;justify-content:center;z-index:20;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+.sheet{width:100%;max-width:560px;background:var(--card);color:var(--ink);border-radius:12px;padding:22px 22px 20px;box-sizing:border-box;
+  animation:rise .28s cubic-bezier(.2,.8,.3,1);display:flex;flex-direction:column;gap:12px;box-shadow:0 -10px 40px rgba(0,0,0,.35)}
+@media (min-height:640px){.scrim{align-items:center}}
+@keyframes rise{from{transform:translateY(30px);opacity:0}}
+.eyebrow{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.1em;font-size:13px;color:var(--ink-2)}
+.sheet h2{font-family:var(--display);font-weight:400;font-size:34px;line-height:1;margin:0;text-wrap:balance}
+.link{font-family:var(--cond);font-size:24px;font-weight:700;line-height:1.15;background:var(--flood);color:var(--ink);padding:10px 12px;border-radius:6px;text-wrap:balance}
+.three{display:flex;flex-wrap:wrap;gap:6px}
+.three span{font-family:var(--cond);font-weight:600;font-size:15px;border:1.5px solid var(--ink);border-radius:20px;padding:3px 10px}
+.note{margin:0;color:var(--ink-2);font-size:16px;line-height:1.45}
+.stats{display:flex;gap:18px;font-family:var(--cond);font-size:15px;color:var(--ink-2)}
+.stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+.btn{border:0;border-radius:8px;background:var(--ink);color:var(--card);font-family:var(--display);font-size:22px;letter-spacing:.04em;padding:14px 18px;text-transform:uppercase}
+.btn:hover{background:#000}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--ink)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row .btn{flex:1}
+
+/* Start */
+.start{flex:1;display:flex;flex-direction:column;justify-content:center;gap:22px;padding-block:20px}
+.title{font-family:var(--display);font-size:clamp(64px,17vw,120px);line-height:.88;margin:0;letter-spacing:.005em;color:var(--chalk)}
+.title em{font-style:normal;color:var(--flood);display:block}
+.topic{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.1em;font-size:14px;color:var(--flood)}
+.lede{font-size:18px;line-height:1.5;color:var(--chalk-dim);max-width:34ch;margin:0}
+.rules{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;font-family:var(--cond);font-size:17px;max-width:420px}
+.rules .k{font-family:var(--display);color:var(--flood);font-size:20px;text-align:right}
+label.nick{display:flex;flex-direction:column;gap:6px;font-family:var(--cond);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:13px;color:var(--chalk-dim);max-width:420px}
+label.nick input{font:500 18px var(--body);padding:12px 14px;border-radius:8px;border:1px solid var(--line);background:rgba(4,18,12,.6);color:var(--chalk)}
+.start .btn{background:var(--flood);color:var(--ink);max-width:420px}
+.start .btn:hover{background:#ffe566}
+.best{font-family:var(--cond);color:var(--chalk-dim);font-size:15px}
+footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:420px){.grid{gap:10px}.qline{font-size:22px}.ball{width:26px;height:26px}}
+</style>
+
+</head>
+<body>
+<div class="wrap" id="app">
+  <section class="start" id="startView">
+    <div class="topic" id="topic">Premier League footballers, 1992–2026</div>
+    <h1 class="title">Four’s<em>a Crowd</em></h1>
+    <p class="lede">Four of them. Three share a link. Pick the one who doesn't belong.</p>
+    <div class="rules">
+      <span class="k">100</span><span>sets, from pre-season to title decider</span>
+      <span class="k">3</span><span>lives. Every wrong pick pops a ball</span>
+    </div>
+    <label class="nick" for="nick">Your name on the scoresheet
+      <input id="nick" maxlength="24" autocomplete="nickname" placeholder="e.g. Raj">
+    </label>
+    <button class="btn" id="kickoff">Kick off</button>
+    <div class="best" id="best"></div>
+  </section>
+
+  <section id="gameView" class="game" hidden>
+    <div class="board">
+      <div>
+        <div class="stage" id="stage">Pre-season</div>
+        <div class="qline" id="qline">Set 1<small>of 100</small></div>
+      </div>
+      <div class="lives" id="lives" aria-label="Lives"></div>
+      <div class="scoreline">
+        <span>Score <b id="score">0</b></span>
+        <span>Fails <b id="fails">0</b></span>
+        <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+      </div>
+    </div>
+    <div class="prompt" id="prompt">Who's the odd one out?</div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <footer id="foot">Not affiliated with the Premier League or any club.</footer>
+</div>
+
+<div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+
+<script>
+(() => {
+  const CFG = Object.assign({ api: "/api", setsUrl: "data/sets.json", photosUrl: "data/photos.json", hideNamesAfter: 10 }, window.OOO_CONFIG || {});
+  const STAGES = { 1: "Pre-season", 2: "Matchday", 3: "Derby day", 4: "Cup final", 5: "Title decider" };
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  let SETS = [], PHOTOS = {};
+  let playerId = store.get("ooo.pid", null); if (!playerId) { playerId = uid(); store.set("ooo.pid", playerId); }
+  const S = { session: null, queue: [], idx: 0, lives: 3, score: 0, fails: 0, qStart: 0, attempt: 0, locked: false, nickname: "" };
+
+  /* ---------- telemetry ---------- */
+  function send(type, extra = {}) {
+    const body = JSON.stringify(Object.assign({
+      type, player_id: playerId, session_id: S.session, nickname: S.nickname || null,
+      ts: Date.now(), lives_left: S.lives, score: S.score, q_index: S.idx,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone, screen_w: window.innerWidth
+    }, extra));
+    try {
+      if (type === "session_end" && navigator.sendBeacon) { navigator.sendBeacon(CFG.api + "/event", new Blob([body], { type: "application/json" })); return; }
+      fetch(CFG.api + "/event", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
+    } catch {}
+  }
+
+  /* ---------- rendering ---------- */
+  const BALL = '<svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.5" fill="#f7f8f3" stroke="#122019" stroke-width="1.6"/><path d="M16 10.2l4.6 3.3-1.8 5.4h-5.6l-1.8-5.4z" fill="#122019"/><path d="M16 10.2V3.6M20.6 13.5l6.1-2.1M18.8 18.9l3.8 5.2M13.2 18.9l-3.8 5.2M11.4 13.5l-6.1-2.1" stroke="#122019" stroke-width="1.4"/><path d="M12.3 2.6l3.7 1 3.7-1M27.9 9.7l-.3 3.9 2 3.2M25.4 26.3l-3.8.9-2.3 3M6.6 26.3l3.8.9 2.3 3M4.1 9.7l.3 3.9-2 3.2" stroke="#122019" stroke-width="1.4" fill="none"/></svg>';
+  function renderLives() {
+    const el = $("lives"); el.innerHTML = "";
+    for (let i = 0; i < 3; i++) {
+      const b = document.createElement("div"); b.className = "ball" + (i >= S.lives ? " popped" : ""); b.innerHTML = BALL; el.appendChild(b);
+    }
+    el.setAttribute("aria-label", S.lives + " lives left");
+  }
+  function popBall() {
+    const balls = $("lives").children, b = balls[S.lives]; if (!b) return;
+    b.classList.add("popping");
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement("i"); s.className = "shard"; const a = (i / 8) * Math.PI * 2;
+      s.style.setProperty("--dx", Math.cos(a) * 26 + "px"); s.style.setProperty("--dy", Math.sin(a) * 26 + "px"); b.appendChild(s);
+    }
+    setTimeout(() => { b.classList.remove("popping"); b.classList.add("popped"); b.querySelectorAll(".shard").forEach(n => n.remove()); }, 600);
+  }
+  function hue(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; }
+  function initials(name) { const p = name.replace(/[^\p{L}\s'-]/gu, "").split(/\s+/).filter(Boolean); return (p.length === 1 ? p[0].slice(0, 2) : p[0][0] + p[p.length - 1][0]).toUpperCase(); }
+  const esc = (v) => String(v ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const hasPhoto = (name) => !!(PHOTOS[name] && PHOTOS[name].src);
+  function face(name, hidden) {
+    const ph = PHOTOS[name];
+    const h = hue(name);
+    const bg = `linear-gradient(160deg,hsl(${h} 55% 42%),hsl(${(h + 40) % 360} 60% 26%))`;
+    const mono = `<span class="mono">${esc(initials(name))}</span>`;
+    if (hasPhoto(name)) return `<div class="face photo" style="background:${bg}"><img src="${esc(ph.src)}" alt="${hidden ? "Mystery player" : esc(name)}" loading="eager" decoding="async">${ph.credit ? `<span class="credit">${esc(ph.credit)}</span>` : ""}</div>`;
+    return `<div class="face" style="background:${bg}">${mono}</div>`;
+  }
+  function reveal(card) {
+    const n = card.querySelector(".name");
+    if (n && n.classList.contains("hidden")) { n.textContent = card.dataset.name; n.classList.remove("hidden"); n.classList.add("revealed"); }
+  }
+  function renderSet() {
+    const set = S.queue[S.idx];
+    S.attempt = 0; S.locked = false; S.qStart = performance.now(); S.wrong = [];
+    $("stage").textContent = STAGES[set.d] || "";
+    $("qline").innerHTML = `Set ${S.idx + 1}<small>of ${S.queue.length}</small>`;
+    $("score").textContent = S.score; $("fails").textContent = S.fails;
+    $("prog").style.width = (S.idx / S.queue.length * 100) + "%";
+    const g = $("grid"); g.innerHTML = "";
+    // From round hideNamesAfter+1, names are hidden — but only on cards that have a photo to go on.
+    const hideRound = S.idx >= CFG.hideNamesAfter;
+    S.hidden = 0;
+    shuffle(set.players).forEach(name => {
+      const hide = hideRound && hasPhoto(name);
+      if (hide) S.hidden++;
+      const b = document.createElement("button"); b.className = "card"; b.type = "button"; b.dataset.name = name;
+      b.setAttribute("aria-label", hide ? "Mystery player" : name);
+      b.innerHTML = face(name, hide) + `<div class="name${hide ? " hidden" : ""}">${hide ? "Who's this?" : esc(name)}</div>`;
+      const img = b.querySelector("img");
+      if (img) img.onerror = () => { img.replaceWith(Object.assign(document.createElement("span"), { className: "mono", textContent: initials(name) })); reveal(b); };
+      b.onclick = () => pick(b, name);
+      g.appendChild(b);
+    });
+    $("prompt").textContent = S.hidden ? "Names hidden. Who's the odd one out?" : "Who's the odd one out?";
+    send("question_shown", { set_id: set.id, d: set.d, names_hidden: S.hidden });
+  }
+
+  function pick(btn, name) {
+    if (S.locked || btn.disabled) return;
+    const set = S.queue[S.idx], ms = Math.round(performance.now() - S.qStart);
+    S.attempt++;
+    const correct = name === set.odd;
+    send("answer", { set_id: set.id, d: set.d, attempt_no: S.attempt, correct: correct ? 1 : 0, ms, chosen: name, names_hidden: S.hidden, lives_left: correct ? S.lives : S.lives - 1 });
+    if (correct) {
+      S.locked = true; S.score++;
+      btn.classList.add("right");
+      document.querySelectorAll(".card").forEach(c => { c.disabled = true; reveal(c); if (c !== btn) c.classList.add("dim"); });
+      $("score").textContent = S.score;
+      setTimeout(() => verdict(set, ms), 380);
+    } else {
+      S.lives--; S.fails++; S.wrong.push(name);
+      btn.disabled = true; btn.classList.add("wrong"); reveal(btn);
+      popBall(); $("fails").textContent = S.fails;
+      if (S.lives <= 0) {
+        S.locked = true;
+        document.querySelectorAll(".card").forEach(c => { c.disabled = true; reveal(c); });
+        setTimeout(() => gameOver(set), 750);
+      }
+    }
+  }
+
+  function sheet(html) { $("sheet").innerHTML = html; $("scrim").hidden = false; const f = $("sheet").querySelector("button"); f && f.focus(); }
+  function closeSheet() { $("scrim").hidden = true; }
+
+  function credits(set) {
+    const rows = set.players.filter(hasPhoto).map(p => {
+      const ph = PHOTOS[p], who = esc(ph.credit || "Wikimedia Commons");
+      return `${esc(p)}: ${ph.page ? `<a href="${esc(ph.page)}" target="_blank" rel="noopener">${who}</a>` : who}`;
+    });
+    return rows.length ? `<div class="credits">Photos: ${rows.join(" · ")}</div>` : "";
+  }
+
+  function verdict(set, ms) {
+    const three = set.players.filter(p => p !== set.odd);
+    const first = S.attempt === 1;
+    sheet(`
+      <div class="eyebrow">${first ? "Spot on" : "Got there"} · ${set.odd} is the odd one out</div>
+      <h2>The link</h2>
+      <div class="link">${set.link}</div>
+      <div class="three">${three.map(p => `<span>${p}</span>`).join("")}</div>
+      ${set.oddNote ? `<p class="note">${set.oddNote}</p>` : ""}
+      <div class="stats"><span>Time <b>${(ms / 1000).toFixed(1)}s</b></span><span>Wrong picks <b>${S.attempt - 1}</b></span></div>
+      ${credits(set)}
+      <button class="btn" id="next">${S.idx + 1 >= S.queue.length ? "Final whistle" : "Next"}</button>`);
+    $("next").onclick = () => {
+      closeSheet(); S.idx++;
+      if (S.idx >= S.queue.length) return finish(true);
+      renderSet();
+    };
+  }
+
+  function gameOver(set) {
+    const three = set.players.filter(p => p !== set.odd);
+    sheet(`
+      <div class="eyebrow">Out of lives · Set ${S.idx + 1}</div>
+      <h2>Full time</h2>
+      <p class="note">It was <b>${set.odd}</b>. The other three: <b>${set.link.toLowerCase()}</b> (${three.join(", ")}).</p>
+      ${credits(set)}
+      <div class="stats"><span>Score <b>${S.score}</b></span><span>Reached <b>${STAGES[set.d]}</b></span></div>
+      <div class="row"><button class="btn" id="again">Play again</button><button class="btn ghost" id="home">Menu</button></div>`);
+    finish(false);
+    $("again").onclick = () => { closeSheet(); start(); };
+    $("home").onclick = () => { closeSheet(); showStart(); };
+  }
+
+  function finish(won) {
+    send("session_end", { reason: won ? "completed" : "out_of_lives", furthest: S.idx + (won ? 0 : 1) });
+    S.ended = true;
+    const best = store.get("ooo.best", 0); if (S.score > best) store.set("ooo.best", S.score);
+    if (won) sheet(`<div class="eyebrow">All ${S.queue.length} sets</div><h2>Champions</h2><p class="note">A full season with ${S.fails} wrong pick${S.fails === 1 ? "" : "s"}. More sets coming.</p><button class="btn" id="home2">Menu</button>`), $("home2").onclick = () => { closeSheet(); showStart(); };
+  }
+
+  function buildQueue() {
+    const tiers = {};
+    SETS.forEach(s => (tiers[s.d] = tiers[s.d] || []).push(s));
+    return Object.keys(tiers).sort((a, b) => a - b).flatMap(k => shuffle(tiers[k]));
+  }
+
+  function start() {
+    S.nickname = ($("nick").value || "").trim().slice(0, 24); store.set("ooo.nick", S.nickname);
+    S.session = uid(); S.queue = buildQueue(); S.idx = 0; S.lives = 3; S.score = 0; S.fails = 0; S.ended = false;
+    $("startView").hidden = true; $("gameView").hidden = false;
+    renderLives();
+    send("session_start", { ua: navigator.userAgent.slice(0, 160), lang: navigator.language, set_count: S.queue.length });
+    renderSet();
+  }
+  function showStart() {
+    $("gameView").hidden = true; $("startView").hidden = false;
+    const best = store.get("ooo.best", 0); $("best").textContent = best ? `Your best: ${best} correct` : "";
+  }
+  window.addEventListener("pagehide", () => { if (S.session && !S.ended) { S.ended = true; send("session_end", { reason: "left", furthest: S.idx + 1 }); } });
+
+  $("kickoff").onclick = () => SETS.length && start();
+  $("nick").value = store.get("ooo.nick", "");
+  $("nick").addEventListener("keydown", e => { if (e.key === "Enter") $("kickoff").click(); });
+
+  async function load() {
+    try {
+      if (window.OOO_SETS) SETS = window.OOO_SETS;
+      else { const data = await (await fetch(CFG.setsUrl)).json(); SETS = data.sets; if (data.theme) $("topic").textContent = data.theme; }
+    } catch { $("kickoff").textContent = "Couldn't load questions"; $("kickoff").disabled = true; return; }
+    try { const r = await fetch(CFG.photosUrl); if (r.ok) PHOTOS = await r.json(); } catch {}
+    showStart();
+  }
+  load();
+})();
+</script>
+</body>
+</html>

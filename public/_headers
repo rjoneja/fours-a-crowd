@@ -1,0 +1,5 @@
+/dashboard/*
+  X-Robots-Tag: noindex
+  Cache-Control: no-store
+/data/*
+  Cache-Control: public, max-age=300
