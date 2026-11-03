@@ -5,4 +5,4 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "fours-a-crowd"
-database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
+database_id = "17b25bf2-c8ea-4146-9bc5-06fece306d44"
