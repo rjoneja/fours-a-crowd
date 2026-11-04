@@ -77,6 +77,8 @@ td.muted{color:var(--fg-3)}
       <div class="sub" id="sub">Who's playing, how far they get, and which sets catch people out.</div>
     </div>
     <div class="controls">
+      <label for="topic" class="sub">Topic</label>
+      <select id="topic"></select>
       <label for="days" class="sub">Range</label>
       <select id="days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select>
       <input id="token" type="password" placeholder="Dashboard token" autocomplete="current-password">
@@ -114,7 +116,11 @@ td.muted{color:var(--fg-3)}
 <script>
 (() => {
   const API = (window.OOO_CONFIG && window.OOO_CONFIG.api) || "/api";
-  const STAGES = {1:"Pre-season",2:"Matchday",3:"Derby day",4:"Cup final",5:"Title decider"};
+  let TOPICS = [], SETSBY = {};
+  const curTopic = () => $("topic").value || (TOPICS[0] && TOPICS[0].slug) || "premier-league";
+  const topicInfo = () => TOPICS.find(t => t.slug === curTopic()) || {};
+  const topicTitle = slug => (TOPICS.find(t => t.slug === slug) || {}).title || slug;
+  const STAGES = new Proxy({}, { get: (_, d) => ((topicInfo().stages || {})[d]) || ("Stage " + String(d)) });
   const EXPECT = {1:.85,2:.72,3:.6,4:.48,5:.38}; // target first-try accuracy per stage
   const $ = id => document.getElementById(id);
   const ls = { get(k){try{return localStorage.getItem(k)}catch{return null}}, set(k,v){try{localStorage.setItem(k,v)}catch{}} };
@@ -127,14 +133,25 @@ td.muted{color:var(--fg-3)}
 
   /* ---------- data ---------- */
   async function loadSets(){
-    try { const r = await fetch("../data/sets.json"); if (r.ok) (await r.json()).sets.forEach(s => SETS[s.id] = s); } catch {}
-    if (!Object.keys(SETS).length && window.OOO_SETS) window.OOO_SETS.forEach(s => SETS[s.id] = s);
+    const P = window.OOO_DATA;
+    try {
+      const idx = P ? P.topics : await (await fetch("../data/topics.json")).json();
+      TOPICS = idx.topics;
+      for (const t of TOPICS) {
+        const sets = P ? (P.sets[t.slug] || []) : (await (await fetch(`../data/topics/${t.slug}/sets.json`)).json()).sets;
+        SETSBY[t.slug] = {}; sets.forEach(s => SETSBY[t.slug][s.id] = s);
+      }
+    } catch {}
+    $("topic").innerHTML = TOPICS.map(t => `<option value="${esc(t.slug)}">${esc(t.title)}</option>`).join("");
+    const saved = ls.get("ooo.dash.topic"); if (saved && SETSBY[saved]) $("topic").value = saved;
+    SETS = SETSBY[curTopic()] || {};
   }
   async function load(){
     const token = $("token").value.trim(); if (token) ls.set("ooo.dash", token);
     const days = $("days").value;
+    SETS = SETSBY[curTopic()] || {}; ls.set("ooo.dash.topic", curTopic());
     try {
-      const r = await fetch(`${API}/stats?days=${days}`, { headers: { authorization: "Bearer " + token } });
+      const r = await fetch(`${API}/stats?days=${days}&topic=${encodeURIComponent(curTopic())}`, { headers: { authorization: "Bearer " + token } });
       if (r.status === 401) throw new Error("auth");
       if (!r.ok) throw new Error("http");
       DATA = await r.json(); banner("");
@@ -204,7 +221,8 @@ td.muted{color:var(--fg-3)}
   /* ---------- render ---------- */
   function render(){
     const T = DATA.totals || {};
-    $("sub").textContent = `${DATA.demo ? "Example data · " : ""}Last ${DATA.days} days · updated ${new Date(DATA.generated_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}`;
+    const others = (DATA.by_topic || []).map(b => `${topicTitle(b.topic)}: ${b.sessions} goes`).join(" · ");
+    $("sub").textContent = `${DATA.demo ? "Example data · " : ""}${topicTitle(curTopic())} · last ${DATA.days} days${others ? " · " + others : ""} · updated ${new Date(DATA.generated_at).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}`;
     const k = [
       ["Players", fmtN(T.players), "unique browsers"],
       ["Goes", fmtN(T.sessions), "games started"],
@@ -283,7 +301,7 @@ td.muted{color:var(--fg-3)}
 
   function renderSets(){
     const q = $("setFilter").value.trim().toLowerCase();
-    let rows = (DATA.sets||[]).map(s => Object.assign({}, s, { meta: SETS[s.set_id] || {} }));
+    let rows = (DATA.sets||[]).map(s => Object.assign({}, s, { meta: (SETSBY[s.topic || curTopic()] || {})[s.set_id] || {} }));
     if (q) rows = rows.filter(r => (r.meta.link||"").toLowerCase().includes(q) || (r.meta.players||[]).some(p => p.toLowerCase().includes(q)));
     rows.sort((a,b) => { const av = a[sortKey] ?? -1, bv = b[sortKey] ?? -1; return (av > bv ? 1 : av < bv ? -1 : 0) * sortDir; });
     const cols = [["set_id","#",1],["d","Stage",1],[null,"Odd one out"],[null,"Link"],["shown","Shown",1],["first_try_rate","First-try",1],["avg_solve_ms","Avg solve",1],["fails","Fails",1],[null,"Most-picked wrong"],[null,"Observed"]];
@@ -303,6 +321,7 @@ td.muted{color:var(--fg-3)}
   }
 
   async function exportCsv(){
+    // Exports every topic; the CSV has a topic column.
     if (DATA && DATA.demo) { banner("Export needs the live API. Enter your dashboard token on the deployed site.", true); return; }
     try {
       const r = await fetch(`${API}/export`, { headers: { authorization: "Bearer " + $("token").value.trim() } });
@@ -311,7 +330,7 @@ td.muted{color:var(--fg-3)}
     } catch { banner("Export failed. Check the token and that the API is deployed.", true); }
   }
 
-  $("load").onclick = load; $("days").onchange = load; $("export").onclick = exportCsv;
+  $("load").onclick = load; $("days").onchange = load; $("topic").onchange = load; $("export").onclick = exportCsv;
   $("token").addEventListener("keydown", e => e.key === "Enter" && load());
   $("setFilter").addEventListener("input", () => DATA && renderSets());
   $("token").value = ls.get("ooo.dash") || "";

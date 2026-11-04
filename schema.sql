@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id          TEXT PRIMARY KEY,          -- one "go" from kick-off to game over
   player_id   TEXT NOT NULL,
   nickname    TEXT,
+  topic       TEXT,                      -- topic slug, e.g. premier-league
   country     TEXT,
   device      TEXT,                      -- mobile | tablet | desktop
   tz          TEXT,
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id  TEXT NOT NULL,
   player_id   TEXT NOT NULL,
+  topic       TEXT,                      -- topic slug; set_id is unique within a topic
   set_id      INTEGER NOT NULL,
   d           INTEGER,                   -- authored difficulty 1-5
   q_index     INTEGER,                   -- 0-based position in that session
@@ -48,3 +50,4 @@ CREATE INDEX IF NOT EXISTS idx_attempts_session ON attempts(session_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_ts      ON attempts(ts);
 CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_player  ON sessions(player_id);
+CREATE INDEX IF NOT EXISTS idx_attempts_topic_set ON attempts(topic, set_id);

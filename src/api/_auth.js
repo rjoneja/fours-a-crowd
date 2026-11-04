@@ -11,5 +11,11 @@ export function authorised(request, env) {
   return diff === 0;
 }
 
+// ?topic=<slug> filter for dashboard endpoints; "" means all topics.
+export const topicParam = (request) => {
+  const t = new URL(request.url).searchParams.get("topic") || "";
+  return /^[a-z0-9-]{0,40}$/.test(t) ? t : "";
+};
+
 export const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });

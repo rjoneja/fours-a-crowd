@@ -1,0 +1,27 @@
+{
+  "default": "premier-league",
+  "topics": [
+    {
+      "slug": "premier-league",
+      "title": "Premier League footballers",
+      "subtitle": "Every era, 1992–2026",
+      "look": "pitch",
+      "lives": "ball",
+      "hideNamesAfter": 10,
+      "stages": { "1": "Pre-season", "2": "Matchday", "3": "Derby day", "4": "Cup final", "5": "Title decider" },
+      "words": { "start": "Kick off", "lifeLost": "pops a ball", "lastNext": "Final whistle", "over": "Full time", "won": "Champions", "wonNote": "A full season" },
+      "footer": "Not affiliated with the Premier League or any club."
+    },
+    {
+      "slug": "surprising",
+      "title": "Surprising general knowledge",
+      "subtitle": "The obvious answer is usually wrong",
+      "look": "chalk",
+      "lives": "bulb",
+      "hideNamesAfter": null,
+      "stages": { "1": "Warm-up", "2": "Pub quiz", "3": "Head-scratcher", "4": "Tough crowd", "5": "Know-it-all" },
+      "words": { "start": "Let's go", "lifeLost": "blows a bulb", "lastNext": "Finish", "over": "Lights out", "won": "Know-it-all", "wonNote": "Every set" },
+      "footer": "Photos from Wikimedia Commons."
+    }
+  ]
+}

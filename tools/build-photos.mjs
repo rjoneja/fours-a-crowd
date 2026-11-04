@@ -1,6 +1,7 @@
-// Builds public/data/photos.json from your picks in public/data/photos-source.json.
+// Builds each topic's photos.json from its photos-source.json, for every topic in public/data/topics.json.
+// Files live in public/data/topics/<slug>/.
 //
-// photos-source.json maps each player to a Wikimedia Commons file, e.g.
+// photos-source.json maps each item (player, thing, place) to a Wikimedia Commons file, e.g.
 //   "Thierry Henry": "File:Thierry Henry 2012.jpg"
 // You can paste the file name, or the whole Commons page URL. Leave "" for players without a photo yet.
 // A value can also be a list of candidates in order of preference; the first one that is on Commons
@@ -16,10 +17,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-const ROOT = new URL("../public/data/", import.meta.url);
-const SRC = new URL("photos-source.json", ROOT);
-const OUT = new URL("photos.json", ROOT);
-const SETS = new URL("sets.json", ROOT);
+const DATA = new URL("../public/data/", import.meta.url);
 const API = "https://commons.wikimedia.org/w/api.php";
 // Wikimedia asks automated clients to identify themselves. Add your site URL here once it's live.
 const UA = "FoursACrowd-photo-builder/1.0 (quiz game; https://github.com/)";
@@ -30,15 +28,19 @@ const NOT_FREE = /\b(nc|nd)\b|non-?commercial|no ?deriv/i;
 const strict = process.argv.includes("--strict");
 const unverified = process.argv.includes("--unverified");
 const filePath = (title) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(title.slice(5).replace(/ /g, "_"))}`;
-const allPlayers = [...new Set(JSON.parse(readFileSync(SETS)).sets.flatMap((s) => s.players))].sort((a, b) => a.localeCompare(b));
 
-// Keep photos-source.json in step with the question sets: add any new players with an empty value.
-const source = existsSync(SRC) ? JSON.parse(readFileSync(SRC)) : { players: {} };
-let added = 0;
-for (const p of allPlayers) if (!(p in source.players)) { source.players[p] = ""; added++; }
-const sorted = Object.fromEntries(Object.entries(source.players).sort(([a], [b]) => a.localeCompare(b)));
-writeFileSync(SRC, JSON.stringify({ ...source, players: sorted }, null, 2) + "\n");
-if (added) console.log(`Added ${added} new player(s) to photos-source.json`);
+// Keep photos-source.json in step with the question sets: add any new items with an empty value.
+function syncSource(dir) {
+  const SRC = new URL("photos-source.json", dir);
+  const allPlayers = [...new Set(JSON.parse(readFileSync(new URL("sets.json", dir))).sets.flatMap((s) => s.players))].sort((a, b) => a.localeCompare(b));
+  const source = existsSync(SRC) ? JSON.parse(readFileSync(SRC)) : { players: {} };
+  let added = 0;
+  for (const p of allPlayers) if (!(p in source.players)) { source.players[p] = ""; added++; }
+  const sorted = Object.fromEntries(Object.entries(source.players).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(SRC, JSON.stringify({ ...source, players: sorted }, null, 2) + "\n");
+  if (added) console.log(`  added ${added} new item(s) to photos-source.json`);
+  return { allPlayers, sorted };
+}
 
 export function toTitle(v) {
   if (!v) return null;
@@ -84,6 +86,21 @@ async function lookup(titles) {
 }
 
 async function main() {
+  const { topics } = JSON.parse(readFileSync(new URL("topics.json", DATA)));
+  let fail = false;
+  for (const t of topics) {
+    console.log(`\n[${t.slug}] ${t.title}`);
+    const r = await buildTopic(t);
+    if (r === "offline") break;
+    fail = fail || r;
+  }
+  if (fail) process.exit(1);
+}
+
+async function buildTopic(topic) {
+  const dir = new URL(`topics/${topic.slug}/`, DATA);
+  const OUT = new URL("photos.json", dir);
+  const { allPlayers, sorted } = syncSource(dir);
   const wanted = new Map();
   const list = (v) => (Array.isArray(v) ? v : [v]).map(toTitle).filter(Boolean);
   for (const [player, v] of Object.entries(sorted)) list(v).forEach((t, rank) => { if (!wanted.has(t)) wanted.set(t, { player, rank }); });
@@ -101,8 +118,8 @@ async function main() {
       rawErrors.push(...e);
     }
   } catch (err) {
-    console.warn(`Couldn't reach Wikimedia Commons (${err.message}). Keeping the existing photos.json.`);
-    process.exit(0);
+    console.warn(`Couldn't reach Wikimedia Commons (${err.message}). Keeping the existing photos.json files.`);
+    return "offline";
   }
 
   for (const [p, c] of Object.entries(candidates)) photos[p] = c.sort((a, b) => a.rank - b.rank)[0].photo;
@@ -110,15 +127,16 @@ async function main() {
   const errors = rawErrors.filter((e) => !photos[e.player]).map((e) => e.msg);
   const ordered = Object.fromEntries(Object.entries(photos).sort(([a], [b]) => a.localeCompare(b)));
   writeFileSync(OUT, JSON.stringify(ordered, null, 2) + "\n");
-  console.log(`photos.json: ${Object.keys(ordered).length} of ${allPlayers.length} players have a photo`);
+  console.log(`  photos.json: ${Object.keys(ordered).length} of ${allPlayers.length} items have a photo`);
 
-  const TODO = new URL("photos-todo.md", import.meta.url);
-  const search = (p) => `https://commons.wikimedia.org/w/index.php?title=Special:MediaSearch&type=image&search=${encodeURIComponent(p + " footballer")}`;
-  writeFileSync(TODO, `# Players still needing a photo (${missing.length})\n\nOpen the link, pick a clear head-and-shoulders shot, open the file page and copy its name\n(e.g. \`File:Thierry Henry 2012.jpg\`) into public/data/photos-source.json. Then run \`node tools/build-photos.mjs\`.\n\n` +
+  const TODO = new URL(`photos-todo/${topic.slug}.md`, import.meta.url);
+  const hint = topic.slug === "premier-league" ? " footballer" : "";
+  const search = (p) => `https://commons.wikimedia.org/w/index.php?title=Special:MediaSearch&type=image&search=${encodeURIComponent(p + hint)}`;
+  writeFileSync(TODO, `# ${topic.title}: items still needing a photo (${missing.length})\n\nOpen the link, pick a clear photo, open the file page and copy its name\n(e.g. \`File:Example 2012.jpg\`) into public/data/topics/${topic.slug}/photos-source.json. Then run \`node tools/build-photos.mjs\`.\n\n` +
     missing.map((p) => `- [ ] ${p}: ${search(p)}`).join("\n") + "\n");
-  if (missing.length) console.log(`${missing.length} players still need a photo. Checklist with search links: tools/photos-todo.md`);
-  if (errors.length) console.error(`\nProblems (${errors.length}; these players show initials instead):\n  ` + errors.join("\n  "));
-  if (strict && (errors.length || missing.length)) process.exit(1);
+  if (missing.length) console.log(`  ${missing.length} still need a photo. Checklist: tools/photos-todo/${topic.slug}.md`);
+  if (errors.length) console.error(`  Problems (${errors.length}; these show initials instead):\n    ` + errors.join("\n    "));
+  return strict && (errors.length || missing.length);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();
