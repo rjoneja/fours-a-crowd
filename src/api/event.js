@@ -43,22 +43,24 @@ export async function onRequestPost({ request, env }) {
       const qi = int(e.q_index, 0, 10000) ?? 0;
       const lives = int(e.lives_left, 0, 3);
       await db.batch([
-        db.prepare(`INSERT INTO attempts (session_id, player_id, set_id, d, q_index, attempt_no, correct, ms, chosen, lives_left, ts, names_hidden, topic)
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`)
+        db.prepare(`INSERT INTO attempts (session_id, player_id, set_id, d, q_index, attempt_no, correct, ms, chosen, lives_left, ts, names_hidden, topic, pos, odd_pos, blurs, hidden_ms)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)`)
           .bind(e.session_id, e.player_id, int(e.set_id, 0, 100000), int(e.d, 0, 10), qi, int(e.attempt_no, 1, 10),
-                correct, int(e.ms, 0, 3600000), clip(e.chosen, 80), lives, now, int(e.names_hidden, 0, 4) ?? 0, topic),
+                correct, int(e.ms, 0, 3600000), clip(e.chosen, 80), lives, now, int(e.names_hidden, 0, 4) ?? 0, topic,
+                int(e.pos, 0, 3), int(e.odd_pos, 0, 3), int(e.blurs, 0, 1000), int(e.hidden_ms, 0, 3600000)),
         db.prepare(`UPDATE sessions SET last_at = ?2, furthest = MAX(furthest, ?3),
                       score = score + ?4, fails = fails + ?5, lives_left = COALESCE(?6, lives_left) WHERE id = ?1`)
           .bind(e.session_id, now, qi + 1, correct, correct ? 0 : 1, lives),
         db.prepare(`UPDATE players SET last_seen = ?2 WHERE id = ?1`).bind(e.player_id, now),
       ]);
     } else if (e.type === "session_end") {
-      await db.prepare(`UPDATE sessions SET ended_at = COALESCE(ended_at, ?2), last_at = ?2, end_reason = COALESCE(end_reason, ?3) WHERE id = ?1`)
-        .bind(e.session_id, now, clip(e.reason, 20)).run();
+      await db.prepare(`UPDATE sessions SET ended_at = COALESCE(ended_at, ?2), last_at = ?2, end_reason = COALESCE(end_reason, ?3),
+                          end_phase = COALESCE(end_phase, ?4), last_set_id = COALESCE(?5, last_set_id) WHERE id = ?1`)
+        .bind(e.session_id, now, clip(e.reason, 20), clip(e.phase, 12), int(e.set_id, 0, 100000)).run();
     } else {
       // question_shown: only refresh activity; the attempts table carries the timing.
-      await db.prepare(`UPDATE sessions SET last_at = ?2, furthest = MAX(furthest, ?3) WHERE id = ?1`)
-        .bind(e.session_id, now, (int(e.q_index, 0, 10000) ?? 0) + 1).run();
+      await db.prepare(`UPDATE sessions SET last_at = ?2, furthest = MAX(furthest, ?3), last_set_id = COALESCE(?4, last_set_id) WHERE id = ?1`)
+        .bind(e.session_id, now, (int(e.q_index, 0, 10000) ?? 0) + 1, int(e.set_id, 0, 100000)).run();
     }
   } catch (err) {
     return new Response("Write failed", { status: 500 });

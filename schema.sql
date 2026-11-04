@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_at     INTEGER NOT NULL,
   ended_at    INTEGER,
   end_reason  TEXT,                      -- out_of_lives | completed | left
+  end_phase   TEXT,                      -- where a "left" happened: question | verdict | menu | start
+  last_set_id INTEGER,                   -- set on screen most recently (the quit point if they left)
   furthest    INTEGER NOT NULL DEFAULT 0,-- highest set number reached (1-based)
   score       INTEGER NOT NULL DEFAULT 0,
   fails       INTEGER NOT NULL DEFAULT 0,
@@ -42,6 +44,10 @@ CREATE TABLE IF NOT EXISTS attempts (
   chosen      TEXT,
   lives_left  INTEGER,                   -- after this pick
   names_hidden INTEGER DEFAULT 0,        -- how many of the 4 names were hidden (photo-only cards)
+  pos         INTEGER,                   -- quadrant pressed: 0 top left, 1 top right, 2 bottom left, 3 bottom right
+  odd_pos     INTEGER,                   -- quadrant holding the answer
+  blurs       INTEGER,                   -- times the player left the tab/window during this question
+  hidden_ms   INTEGER,                   -- total ms away from the tab/window during this question
   ts          INTEGER NOT NULL
 );
 

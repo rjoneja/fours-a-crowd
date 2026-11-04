@@ -67,6 +67,11 @@ td.muted{color:var(--fg-3)}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
 .toolbar input{width:200px}
 .tall{max-height:520px;overflow:auto}
+.quad{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px}
+.quad div{border:1px solid var(--rule);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.quad b{font-family:var(--display);font-weight:400;font-size:24px;line-height:1.1}
+.quad span{font-size:12px;color:var(--fg-2)}
+.quad .bias b{color:var(--warn)}
 </style>
 </head>
 <body>
@@ -98,6 +103,17 @@ td.muted{color:var(--fg-3)}
   <section class="panel">
     <h2>By stage</h2>
     <div class="scroll"><table id="tStages"></table></div>
+  </section>
+
+  <section class="panel">
+    <h2>By type of set</h2>
+    <p class="cap">Which kinds of link catch people out, take longest, send them to another tab, or make them leave.</p>
+    <div class="scroll"><table id="tTypes"></table></div>
+  </section>
+
+  <section class="two">
+    <div class="panel"><h2>Answer positions</h2><p class="cap">Where the answer sat and which quadrant people pressed. Answers should sit 25% in each.</p><div id="quad"></div></div>
+    <div class="panel"><h2>Where people leave</h2><p class="cap">Sets on screen when a go was abandoned: mid-question or on the answer pop-up.</p><div class="scroll"><table id="tQuits"></table></div></div>
   </section>
 
   <section class="panel">
@@ -172,30 +188,41 @@ td.muted{color:var(--fg-3)}
     const ids = Object.keys(SETS).map(Number).sort((a,b)=>a-b);
     const byD = {}; ids.forEach(i => (byD[SETS[i].d] = byD[SETS[i].d] || []).push(i));
     const order = [1,2,3,4,5].flatMap(d => byD[d] || []);
-    const setAgg = {}, wrong = {}, sessions = [], players = {};
+    const setAgg = {}, wrong = {}, sessions = [], players = {}, posAgg = {}, quitAgg = {};
+    let bag = [];
+    const addPos = (odd, pos, first, ok) => { const k = odd+":"+pos+":"+first; const o = posAgg[k] = posAgg[k] || { odd_pos:odd, pos, first, n:0, ok:0 }; o.n++; o.ok += ok; };
     const now = Date.now();
     const nSess = Math.round(days * 9 + 20);
     for (let k = 0; k < nSess; k++){
       const nm = names[Math.floor(rnd()*names.length)], pid = "p-" + nm;
       const skill = .55 + (nm.charCodeAt(0) % 7) / 18 + rnd()*.08;
       const started = now - rnd()*days*86400000;
-      let lives = 3, score = 0, fails = 0, q = 0, solveMs = [];
-      while (lives > 0 && q < order.length){
+      let lives = 3, score = 0, fails = 0, q = 0, solveMs = [], left = false;
+      while (lives > 0 && q < order.length && !left){
         const sid = order[q], d = SETS[sid].d;
         const p = Math.min(.97, Math.max(.15, skill - (d-1)*.11 + ((sid*37)%11 - 5)/40));
-        const a = setAgg[sid] = setAgg[sid] || { set_id:sid, d, shown:0, ok1:0, ms:[], fails:0 };
+        const a = setAgg[sid] = setAgg[sid] || { set_id:sid, d, shown:0, ok1:0, ms:[], first:[], away:0, slow:0, picks:0, fails:0, quitsQ:0, quitsV:0 };
         a.shown++;
+        if (!bag.length) bag = [0,1,2,3].sort(() => rnd() - .5);
+        const oddPos = bag.pop();
         let attempt = 1, solved = false;
         while (!solved && lives > 0){
-          const ms = 2500 + d*1800 + rnd()*6000;
-          if (rnd() < (attempt === 1 ? p : .5)) { solved = true; score++; if (attempt===1) a.ok1++; a.ms.push(ms); solveMs.push(ms); }
+          const away = attempt === 1 && rnd() < .05 + d*.012;
+          const ms = 2500 + d*1800 + rnd()*6000 + (away ? 25000 + rnd()*60000 : 0);
+          if (attempt === 1) { a.first.push(ms); if (away) a.away++; if (ms > 60000) a.slow++; }
+          a.picks++;
+          const ok = rnd() < (attempt === 1 ? Math.min(.98, p + (away ? .2 : 0)) : .5);
+          const pos = ok ? oddPos : [0,1,2,3].filter(x => x !== oddPos)[rnd() < .45 ? 0 : Math.floor(rnd()*3)];
+          addPos(oddPos, pos, attempt === 1 ? 1 : 0, ok ? 1 : 0);
+          if (ok) { solved = true; score++; if (attempt===1) a.ok1++; a.ms.push(ms); solveMs.push(ms); }
           else { lives--; fails++; a.fails++; const w = SETS[sid].players.filter(x => x !== SETS[sid].odd)[Math.floor(rnd()*3)]; wrong[sid] = wrong[sid] || {}; wrong[sid][w] = (wrong[sid][w]||0) + 1; attempt++; }
         }
+        if (lives > 0 && rnd() < .012 + ((sid*13)%7)*.004) { left = true; (rnd() < .6 ? a.quitsV++ : a.quitsQ++); }
         q++;
       }
       const dur = solveMs.reduce((s,x)=>s+x,0) + fails*4000;
       sessions.push({ id:"s"+k, nickname:nm, country:countries[nm.length % countries.length], device: rnd()<.62?"mobile":"desktop",
-        started_at:started, last_at:started+dur, ended_at:started+dur, end_reason: lives>0?"completed":(rnd()<.1?"left":"out_of_lives"),
+        started_at:started, last_at:started+dur, ended_at:started+dur, end_reason: left ? "left" : lives>0 ? "completed" : "out_of_lives",
         furthest:q, score, fails, lives_left:lives, avg_solve_ms: solveMs.length ? solveMs.reduce((s,x)=>s+x,0)/solveMs.length : null });
       const pl = players[pid] = players[pid] || { id:pid, nickname:nm, country:countries[nm.length % countries.length], first_seen:started, last_seen:started, sessions:0, best:0, fails:0 };
       pl.sessions++; pl.best = Math.max(pl.best, score); pl.fails += fails; pl.first_seen = Math.min(pl.first_seen, started); pl.last_seen = Math.max(pl.last_seen, started);
@@ -203,7 +230,9 @@ td.muted{color:var(--fg-3)}
     sessions.sort((a,b)=>b.started_at-a.started_at);
     const sets = Object.values(setAgg).map(a => {
       const w = wrong[a.set_id] ? Object.entries(wrong[a.set_id]).sort((x,y)=>y[1]-x[1])[0] : null;
-      return { set_id:a.set_id, d:a.d, shown:a.shown, first_try_rate:a.ok1/a.shown, avg_solve_ms: a.ms.length ? a.ms.reduce((s,x)=>s+x,0)/a.ms.length : null, fails:a.fails, top_wrong: w ? {name:w[0], n:w[1]} : null };
+      const avg = xs => xs.length ? xs.reduce((s,x)=>s+x,0)/xs.length : null;
+      return { set_id:a.set_id, d:a.d, shown:a.shown, picks:a.picks, first_try_rate:a.ok1/a.shown, avg_solve_ms: avg(a.ms), avg_first_pick_ms: avg(a.first),
+        away_rate: a.away/a.shown, slow_rate: a.slow/a.shown, fails:a.fails, quits:a.quitsQ+a.quitsV, quits_question:a.quitsQ, views:a.shown, quits_verdict:a.quitsV, top_wrong: w ? {name:w[0], n:w[1]} : null };
     });
     const stages = [1,2,3,4,5].map(d => { const ss = sets.filter(s=>s.d===d); const shown = ss.reduce((t,s)=>t+s.shown,0);
       return { d, shown, first_try_rate: shown ? ss.reduce((t,s)=>t+s.first_try_rate*s.shown,0)/shown : null, avg_solve_ms: ss.length ? ss.reduce((t,s)=>t+(s.avg_solve_ms||0),0)/ss.length : null, fails: ss.reduce((t,s)=>t+s.fails,0) }; });
@@ -215,7 +244,7 @@ td.muted{color:var(--fg-3)}
     return { demo:true, days, generated_at:now,
       totals:{ players:Object.keys(players).length, sessions:sessions.length, picks:solved+allFails, fails:allFails,
         avg_solve_ms: sets.reduce((t,s)=>t+(s.avg_solve_ms||0)*s.shown,0)/shownTotal, avg_furthest: sessions.reduce((t,s)=>t+s.furthest,0)/sessions.length, first_try_rate: ok1/shownTotal },
-      daily, reach:Object.entries(reachMap).map(([f,n])=>({furthest:+f,n})), stages, sets, sessions:sessions.slice(0,200), players:Object.values(players).sort((a,b)=>b.sessions-a.sessions) };
+      positions: Object.values(posAgg), daily, reach:Object.entries(reachMap).map(([f,n])=>({furthest:+f,n})), stages, sets, sessions:sessions.slice(0,200), players:Object.values(players).sort((a,b)=>b.sessions-a.sessions) };
   }
 
   /* ---------- render ---------- */
@@ -232,7 +261,7 @@ td.muted{color:var(--fg-3)}
       ["Failed picks", fmtN(T.fails), `${T.picks ? Math.round(T.fails/T.picks*100) : 0}% of all picks`],
     ];
     $("kpis").innerHTML = k.map(([l,v,h]) => `<div class="kpi"><span class="l">${l}</span><span class="v">${v}</span><span class="h">${h}</span></div>`).join("");
-    drawDaily(); drawReach(); renderStages(); renderSets(); renderSessions(); renderPlayers();
+    drawDaily(); drawReach(); renderStages(); renderTypes(); renderQuad(); renderQuits(); renderSets(); renderSessions(); renderPlayers();
   }
 
   const tip = $("tip");
@@ -299,14 +328,55 @@ td.muted{color:var(--fg-3)}
     $("tStages").innerHTML = `<thead><tr><th>Stage</th><th class="num">Sets shown</th><th class="num">First-try</th><th class="num">Target</th><th class="num">Avg solve</th><th class="num">Failed picks</th><th>Observed</th></tr></thead><tbody>${rows}</tbody>`;
   }
 
+  function aggregate(rows, keyFn){
+    const g = {};
+    for (const r of rows) {
+      const k = keyFn(r); if (!k) continue;
+      const o = g[k] = g[k] || { key:k, sets:0, shown:0, picks:0, fails:0, ok1:0, firstMs:0, away:0, slow:0, quits:0 };
+      o.sets++; o.shown += r.shown||0; o.picks += r.picks||0; o.fails += r.fails||0; o.ok1 += (r.first_try_rate||0)*(r.shown||0);
+      o.firstMs += (r.avg_first_pick_ms||0)*(r.shown||0); o.away += (r.away_rate||0)*(r.shown||0); o.slow += (r.slow_rate||0)*(r.shown||0); o.quits += r.quits||0; o.views = (o.views||0) + (r.views ?? r.shown ?? 0);
+    }
+    return Object.values(g).map(o => ({ ...o, wrong_rate: o.picks ? o.fails/o.picks : null, first_try_rate: o.shown ? o.ok1/o.shown : null,
+      avg_first_pick_ms: o.shown ? o.firstMs/o.shown : null, away_rate: o.shown ? o.away/o.shown : null, slow_rate: o.shown ? o.slow/o.shown : null, quit_rate: o.views ? o.quits/o.views : null }));
+  }
+  const metaOf = s => (SETSBY[s.topic || curTopic()] || {})[s.set_id] || {};
+  function renderTypes(){
+    const rows = aggregate(DATA.sets||[], s => { const t = metaOf(s).tags; return t ? (t.domain === "football" ? t.kind : t.domain + " · " + t.kind) : null; })
+      .sort((a,b) => (b.wrong_rate??0) - (a.wrong_rate??0));
+    $("tTypes").innerHTML = `<thead><tr><th>Type</th><th class="num">Sets</th><th class="num">Shown</th><th class="num">Wrong %</th><th class="num">First-try</th><th class="num">Time to pick</th><th class="num">Left tab</th><th class="num">Over 60s</th><th class="num">Quit here</th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td>${esc(r.key)}</td><td class="num">${r.sets}</td><td class="num">${fmtN(r.shown)}</td><td class="num">${fmtP(r.wrong_rate)}</td><td class="num">${fmtP(r.first_try_rate)}${meter(r.first_try_rate)}</td><td class="num">${fmtS(r.avg_first_pick_ms)}</td><td class="num">${fmtP(r.away_rate)}</td><td class="num">${fmtP(r.slow_rate)}</td><td class="num">${fmtP(r.quit_rate)}</td></tr>`).join("") + "</tbody>";
+  }
+  function renderQuad(){
+    const P = DATA.positions || [], names = ["Top left","Top right","Bottom left","Bottom right"];
+    const tot = P.reduce((t,r)=>t+r.n,0), firsts = P.filter(r=>r.first);
+    const firstTot = firsts.reduce((t,r)=>t+r.n,0);
+    if (!tot) { $("quad").innerHTML = '<p class="cap">No picks recorded with positions yet.</p>'; return; }
+    $("quad").innerHTML = '<div class="quad">' + [0,1,2,3].map(q => {
+      const pressed = P.filter(r=>r.pos===q).reduce((t,r)=>t+r.n,0)/tot;
+      const held = firsts.filter(r=>r.odd_pos===q).reduce((t,r)=>t+r.n,0)/(firstTot||1);
+      const fr = firsts.filter(r=>r.odd_pos===q), acc = fr.reduce((t,r)=>t+r.ok,0)/(fr.reduce((t,r)=>t+r.n,0)||1);
+      const wrongPicks = P.filter(r=>r.pos===q && !r.ok).reduce((t,r)=>t+r.n,0), allWrong = P.filter(r=>!r.ok).reduce((t,r)=>t+r.n,0);
+      const wrongShare = allWrong ? wrongPicks/allWrong : 0;
+      return `<div class="${wrongShare > .32 ? "bias" : ""}"><span>${names[q]}</span><b>${fmtP(pressed)}</b><span>of all presses</span><span>Answer here ${fmtP(held)} · first-try when here ${fmtP(acc)}</span><span>Wrong presses landing here ${fmtP(wrongShare)}</span></div>`;
+    }).join("") + '</div>';
+  }
+  function renderQuits(){
+    const rows = (DATA.sets||[]).filter(r=>r.quits).map(r => ({ ...r, meta: metaOf(r), quit_rate: (r.views ?? r.shown) ? r.quits/(r.views ?? r.shown) : 0 }))
+      .sort((a,b) => b.quits - a.quits || b.quit_rate - a.quit_rate).slice(0, 12);
+    $("tQuits").innerHTML = rows.length ? `<thead><tr><th class="num">#</th><th>Set</th><th class="num">Left</th><th class="num">Mid-question</th><th class="num">On answer</th><th class="num">Of shown</th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td class="num">${r.set_id}</td><td>${esc(r.meta.odd||"")}<div class="muted" style="font-size:12px">${esc(r.meta.link||"")}</div></td><td class="num">${r.quits}</td><td class="num">${r.quits_question||0}</td><td class="num">${r.quits_verdict||0}</td><td class="num">${fmtP(r.quit_rate)}</td></tr>`).join("") + "</tbody>"
+      : '<tbody><tr><td class="muted">Nobody has left mid-go yet.</td></tr></tbody>';
+  }
+
   function renderSets(){
     const q = $("setFilter").value.trim().toLowerCase();
     let rows = (DATA.sets||[]).map(s => Object.assign({}, s, { meta: (SETSBY[s.topic || curTopic()] || {})[s.set_id] || {} }));
     if (q) rows = rows.filter(r => (r.meta.link||"").toLowerCase().includes(q) || (r.meta.players||[]).some(p => p.toLowerCase().includes(q)));
     rows.sort((a,b) => { const av = a[sortKey] ?? -1, bv = b[sortKey] ?? -1; return (av > bv ? 1 : av < bv ? -1 : 0) * sortDir; });
-    const cols = [["set_id","#",1],["d","Stage",1],[null,"Odd one out"],[null,"Link"],["shown","Shown",1],["first_try_rate","First-try",1],["avg_solve_ms","Avg solve",1],["fails","Fails",1],[null,"Most-picked wrong"],[null,"Observed"]];
+    rows.forEach(r => { r.wrong_rate = r.picks ? r.fails / r.picks : null; r.quit_rate = (r.views ?? r.shown) ? (r.quits || 0) / (r.views ?? r.shown) : null; if (r.d == null) r.d = r.meta.d; r.kind = (r.meta.tags || {}).kind || ""; });
+    const cols = [["set_id","#",1],["d","Stage",1],["kind","Kind"],[null,"Odd one out"],[null,"Link"],["shown","Shown",1],["wrong_rate","Wrong %",1],["first_try_rate","First-try",1],["avg_first_pick_ms","Time to pick",1],["away_rate","Left tab",1],["quit_rate","Quit here",1],[null,"Most-picked wrong"],[null,"Observed"]];
     $("tSets").innerHTML = `<thead><tr>${cols.map(([k,l,n]) => `<th ${k?`data-k="${k}"`:""} class="${n?"num":""}">${l}${k===sortKey?(sortDir>0?" ↑":" ↓"):""}</th>`).join("")}</tr></thead><tbody>` +
-      rows.map(r => `<tr><td class="num">${r.set_id}</td><td class="num">${r.d}</td><td>${esc(r.meta.odd||"")}</td><td class="muted">${esc(r.meta.link||"")}</td><td class="num">${fmtN(r.shown)}</td><td class="num">${fmtP(r.first_try_rate)}${meter(r.first_try_rate)}</td><td class="num">${fmtS(r.avg_solve_ms)}</td><td class="num">${fmtN(r.fails)}</td><td class="muted">${r.top_wrong ? esc(r.top_wrong.name) + " (" + r.top_wrong.n + ")" : "–"}</td><td>${r.shown >= 5 ? verdict(r.first_try_rate, r.d) : '<span class="pill p-neutral">Too few plays</span>'}</td></tr>`).join("") + "</tbody>";
+      rows.map(r => `<tr><td class="num">${r.set_id}</td><td class="num">${r.d}</td><td class="muted">${esc(r.kind)}</td><td>${esc(r.meta.odd||"")}</td><td class="muted">${esc(r.meta.link||"")}</td><td class="num">${fmtN(r.shown)}</td><td class="num">${fmtP(r.wrong_rate)}</td><td class="num">${fmtP(r.first_try_rate)}${meter(r.first_try_rate)}</td><td class="num">${fmtS(r.avg_first_pick_ms)}</td><td class="num">${fmtP(r.away_rate)}</td><td class="num">${fmtP(r.quit_rate)}</td><td class="muted">${r.top_wrong ? esc(r.top_wrong.name) + " (" + r.top_wrong.n + ")" : "–"}</td><td>${r.shown >= 5 ? verdict(r.first_try_rate, r.d) : '<span class="pill p-neutral">Too few plays</span>'}</td></tr>`).join("") + "</tbody>";
     $("tSets").querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = k === sortKey ? -sortDir : 1; sortKey = k; renderSets(); });
   }
 

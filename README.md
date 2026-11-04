@@ -54,8 +54,19 @@ Local: `npm install`, `npm run db:init:local`, put `DASHBOARD_TOKEN=devtoken` in
 ## What gets tracked
 
 Each browser gets an anonymous id; players can add a name at kick-off. Country comes from Cloudflare.
-For every click: set, stage, position in the run, attempt number, correct/wrong, milliseconds since the set appeared, which card, lives left.
-Add a short privacy line to the start screen before you share it widely; this is basic analytics, no cookies, no personal data beyond the optional name.
+Per pick: topic, set, stage, position in the go, attempt number, right/wrong, milliseconds since the set appeared,
+which card, **quadrant pressed** and **quadrant holding the answer**, **times the player left the tab or window**
+during the question and **how long they were away**, lives left.
+Per go: start, end, how it ended (out of lives, completed, left), and if they left, **the set on screen** and whether
+it was **mid-question or on the answer pop-up**. A go with no end event and 30 minutes of silence counts as left.
+
+Answers are placed so that in every block of four sets the answer sits once in each quadrant.
+
+Every set has `tags`: `domain` and `kind` (the type of link). The dashboard groups wrong %, time, tab-leaving and
+quits by type as well as by set.
+
+Add a short privacy line to the start screen before you share it widely; this is basic analytics, no cookies,
+no personal data beyond the optional name.
 
 ## Photos (free, from Wikimedia Commons)
 
@@ -78,5 +89,15 @@ The dashboard flags sets whose observed first-try accuracy is well off the targe
 
 ## Towards XGBoost difficulty
 
-`/api/export` gives one row per pick with session context (player's prior accuracy, sessions played, position, lives left, time).
-Once you have a few thousand rows: train a classifier on `correct` for `attempt_no = 1`, with features per set (authored stage, link type, era, nationality-based or not) plus player features. Use the predicted probability to order sets per player, aiming for roughly 70% first-try success, then serve that order from a new `/api/next` function instead of the fixed stage order in `buildQueue()`.
+`/api/export` gives one row per pick with everything above plus the player's history (prior accuracy, goes played)
+and `quit_here` (1 on the last pick of a go the player abandoned).
+
+1. **Now (little data):** give each set a difficulty rating and each player a skill rating, updated after every first
+   pick the way chess (Elo) ratings are. Calibrates from a few dozen plays per set.
+2. **Later (a few thousand first-try picks):** XGBoost models on the export.
+   - `correct` on first attempt: features = set rating, stage, domain, kind, names hidden, answer quadrant,
+     position in the go, lives left, player prior accuracy, goes played, device.
+   - `quit_here`: same features plus how many wrong picks so far this go.
+   - Flag picks with long `ms` and `blurs > 0` as possible look-ups and exclude or down-weight them when training.
+3. Use the two predictions to choose each player's next set: aim for roughly 70% first-try success while keeping
+   predicted quit risk low. Serve it from a new `/api/next` route instead of the fixed stage order in `buildQueue()`.

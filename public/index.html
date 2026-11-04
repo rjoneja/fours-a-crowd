@@ -180,7 +180,17 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
   let TOPICS = [], T = null, SETS = [], PHOTOS = {};
   const cache = {};
   let playerId = store.get("ooo.pid", null); if (!playerId) { playerId = uid(); store.set("ooo.pid", playerId); }
-  const S = { session: null, queue: [], idx: 0, lives: 3, score: 0, fails: 0, qStart: 0, attempt: 0, locked: false, nickname: "" };
+  const S = { session: null, queue: [], idx: 0, lives: 3, score: 0, fails: 0, qStart: 0, attempt: 0, locked: false, nickname: "",
+              posBag: [], oddPos: null, phase: "start", away: false, awayAt: 0, awayMs: 0, blurs: 0 };
+
+  // Leaving the tab or window while a question is on screen (a sign of looking answers up).
+  const questionLive = () => S.phase === "question" && !S.locked;
+  function goneAway() { if (questionLive() && !S.away) { S.away = true; S.awayAt = performance.now(); S.blurs++; } }
+  function cameBack() { if (S.away) { S.awayMs += performance.now() - S.awayAt; S.away = false; } }
+  document.addEventListener("visibilitychange", () => (document.hidden ? goneAway() : cameBack()));
+  window.addEventListener("blur", goneAway);
+  window.addEventListener("focus", cameBack);
+  const awayMsNow = () => Math.round(S.awayMs + (S.away ? performance.now() - S.awayAt : 0));
   const stage = (d) => (T && T.stages && T.stages[d]) || "";
   const word = (k, d) => (T && T.words && T.words[k]) || d;
 
@@ -250,7 +260,13 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     // From round hideNamesAfter+1 (if the topic sets one), names are hidden on cards that have a photo.
     const hideRound = T.hideNamesAfter != null && S.idx >= T.hideNamesAfter;
     S.hidden = 0;
-    shuffle(set.players).forEach(name => {
+    S.phase = "question"; S.away = false; S.awayMs = 0; S.blurs = 0;
+    // Balanced placement: in every block of four sets the answer sits once in each quadrant (0 TL, 1 TR, 2 BL, 3 BR).
+    if (!S.posBag.length) S.posBag = shuffle([0, 1, 2, 3]);
+    S.oddPos = S.posBag.pop();
+    const others = shuffle(set.players.filter(p => p !== set.odd));
+    const order = [0, 1, 2, 3].map(i => (i === S.oddPos ? set.odd : others.shift()));
+    order.forEach((name, pos) => {
       const hide = hideRound && hasPhoto(name);
       if (hide) S.hidden++;
       const b = document.createElement("button"); b.className = "card"; b.type = "button"; b.dataset.name = name;
@@ -258,6 +274,7 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
       b.innerHTML = face(name, hide) + `<div class="name${hide ? " hidden" : ""}">${hide ? "Who's this?" : esc(name)}</div>`;
       const img = b.querySelector("img");
       if (img) img.onerror = () => { img.replaceWith(Object.assign(document.createElement("span"), { className: "mono", textContent: initials(name) })); reveal(b); };
+      b.dataset.pos = pos;
       b.onclick = () => pick(b, name);
       g.appendChild(b);
     });
@@ -271,7 +288,8 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     const set = S.queue[S.idx], ms = Math.round(performance.now() - S.qStart);
     S.attempt++;
     const correct = name === set.odd;
-    send("answer", { set_id: set.id, d: set.d, attempt_no: S.attempt, correct: correct ? 1 : 0, ms, chosen: name, names_hidden: S.hidden, lives_left: correct ? S.lives : S.lives - 1 });
+    send("answer", { set_id: set.id, d: set.d, attempt_no: S.attempt, correct: correct ? 1 : 0, ms, chosen: name, names_hidden: S.hidden,
+                     lives_left: correct ? S.lives : S.lives - 1, pos: +btn.dataset.pos, odd_pos: S.oddPos, blurs: S.blurs, hidden_ms: awayMsNow() });
     if (correct) {
       S.locked = true; S.score++;
       btn.classList.add("right");
@@ -290,7 +308,7 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     }
   }
 
-  function sheet(html) { $("sheet").innerHTML = html; $("scrim").hidden = false; const f = $("sheet").querySelector("button"); f && f.focus(); }
+  function sheet(html) { cameBack(); S.phase = "verdict"; $("sheet").innerHTML = html; $("scrim").hidden = false; const f = $("sheet").querySelector("button"); f && f.focus(); }
   function closeSheet() { $("scrim").hidden = true; }
 
   function credits(set) {
@@ -337,7 +355,7 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
 
   const bestKey = () => "ooo.best." + T.slug;
   function finish(won) {
-    send("session_end", { reason: won ? "completed" : "out_of_lives", furthest: S.idx + (won ? 0 : 1) });
+    send("session_end", { reason: won ? "completed" : "out_of_lives", furthest: S.idx + (won ? 0 : 1), phase: "over" });
     S.ended = true;
     const best = store.get(bestKey(), 0); if (S.score > best) store.set(bestKey(), S.score);
     if (won) sheet(`<div class="eyebrow">All ${S.queue.length} sets</div><h2>${esc(word("won", "Champions"))}</h2><p class="note">${esc(word("wonNote", "Every set"))} with ${S.fails} wrong pick${S.fails === 1 ? "" : "s"}. More sets coming.</p><button class="btn" id="home2">Menu</button>`), $("home2").onclick = () => { closeSheet(); showStart(); };
@@ -380,6 +398,8 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     renderSet();
   }
   function showStart() {
+    if (S.session && !S.ended) { S.ended = true; send("session_end", { reason: "left", furthest: S.idx + 1, phase: "menu" }); }
+    S.phase = "start";
     $("gameView").hidden = true; $("startView").hidden = false;
     renderTopicInfo();
   }
@@ -422,7 +442,13 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     renderTopicInfo();
   }
 
-  window.addEventListener("pagehide", () => { if (S.session && !S.ended) { S.ended = true; send("session_end", { reason: "left", furthest: S.idx + 1 }); } });
+  window.addEventListener("pagehide", () => {
+    if (S.session && !S.ended) {
+      S.ended = true;
+      const set = S.queue[S.idx];
+      send("session_end", { reason: "left", furthest: S.idx + 1, phase: S.phase, set_id: set ? set.id : null, hidden_ms: awayMsNow() });
+    }
+  });
   window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if ($("gameView").hidden && h && T && h !== T.slug) chooseTopic(h); });
   $("kickoff").onclick = start;
   $("nick").value = store.get("ooo.nick", "");
