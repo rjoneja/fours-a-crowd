@@ -5,7 +5,7 @@ Four of them. Three share a link. Pick the one who doesn't belong.
 
 Topics so far:
 - **Premier League footballers** (100 sets). Names hidden after set 10 so you have to recognise faces.
-- **Surprising general knowledge** (63 sets). The obvious answer is usually wrong.
+- **Surprising general knowledge** (561 sets across food, animals, geography, science and culture; each go draws 56, unseen ones first). The obvious answer is usually wrong.
 
 ```
 public/                     static files, served directly by Cloudflare
