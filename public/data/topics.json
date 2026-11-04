@@ -8,8 +8,21 @@
       "look": "pitch",
       "lives": "ball",
       "hideNamesAfter": 10,
-      "stages": { "1": "Pre-season", "2": "Matchday", "3": "Derby day", "4": "Cup final", "5": "Title decider" },
-      "words": { "start": "Kick off", "lifeLost": "pops a ball", "lastNext": "Final whistle", "over": "Full time", "won": "Champions", "wonNote": "A full season" },
+      "stages": {
+        "1": "Pre-season",
+        "2": "Matchday",
+        "3": "Derby day",
+        "4": "Cup final",
+        "5": "Title decider"
+      },
+      "words": {
+        "start": "Kick off",
+        "lifeLost": "pops a ball",
+        "lastNext": "Final whistle",
+        "over": "Full time",
+        "won": "Champions",
+        "wonNote": "A full season"
+      },
       "footer": "Not affiliated with the Premier League or any club."
     },
     {
@@ -19,9 +32,29 @@
       "look": "chalk",
       "lives": "bulb",
       "hideNamesAfter": null,
-      "stages": { "1": "Warm-up", "2": "Pub quiz", "3": "Head-scratcher", "4": "Tough crowd", "5": "Know-it-all" },
-      "words": { "start": "Let's go", "lifeLost": "blows a bulb", "lastNext": "Finish", "over": "Lights out", "won": "Know-it-all", "wonNote": "Every set" },
-      "footer": "Photos from Wikimedia Commons."
+      "stages": {
+        "1": "Warm-up",
+        "2": "Pub quiz",
+        "3": "Head-scratcher",
+        "4": "Tough crowd",
+        "5": "Know-it-all"
+      },
+      "words": {
+        "start": "Let's go",
+        "lifeLost": "blows a bulb",
+        "lastNext": "Finish",
+        "over": "Lights out",
+        "won": "Know-it-all",
+        "wonNote": "Every set"
+      },
+      "footer": "Photos from Wikimedia Commons.",
+      "perRun": {
+        "1": 8,
+        "2": 10,
+        "3": 12,
+        "4": 12,
+        "5": 14
+      }
     }
   ]
 }

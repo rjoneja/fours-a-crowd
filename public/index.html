@@ -262,6 +262,7 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
       g.appendChild(b);
     });
     $("prompt").textContent = S.hidden ? "Names hidden. Who's the odd one out?" : "Who's the odd one out?";
+    markSeen(set.id);
     send("question_shown", { set_id: set.id, d: set.d, names_hidden: S.hidden });
   }
 
@@ -342,11 +343,32 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     if (won) sheet(`<div class="eyebrow">All ${S.queue.length} sets</div><h2>${esc(word("won", "Champions"))}</h2><p class="note">${esc(word("wonNote", "Every set"))} with ${S.fails} wrong pick${S.fails === 1 ? "" : "s"}. More sets coming.</p><button class="btn" id="home2">Menu</button>`), $("home2").onclick = () => { closeSheet(); showStart(); };
   }
 
+  // Sets this browser has already been shown, per topic, so each go favours fresh ones.
+  const seenKey = () => "ooo.seen." + T.slug;
+  const seenSet = () => new Set(store.get(seenKey(), []));
+  function markSeen(id) {
+    const seen = store.get(seenKey(), []);
+    if (!seen.includes(id)) { seen.push(id); store.set(seenKey(), seen.slice(-2000)); }
+  }
+  // Easiest stage first. If the topic sets perRun, each go draws that many sets per stage, unseen ones first;
+  // once every set in a stage has been seen, that stage starts again from scratch.
   function buildQueue() {
     const tiers = {};
     SETS.forEach(s => (tiers[s.d] = tiers[s.d] || []).push(s));
-    return Object.keys(tiers).sort((a, b) => a - b).flatMap(k => shuffle(tiers[k]));
+    let seen = seenSet();
+    return Object.keys(tiers).sort((a, b) => a - b).flatMap(k => {
+      const pool = shuffle(tiers[k]);
+      const n = T.perRun && T.perRun[k] != null ? Math.min(T.perRun[k], pool.length) : pool.length;
+      let fresh = pool.filter(s => !seen.has(s.id));
+      if (fresh.length < n) {               // stage nearly exhausted: forget this stage's history
+        const ids = new Set(pool.map(s => s.id));
+        store.set(seenKey(), store.get(seenKey(), []).filter(id => !ids.has(id)));
+        seen = seenSet(); fresh = pool;
+      }
+      return fresh.slice(0, n);
+    });
   }
+  const runLength = () => T.perRun ? [1, 2, 3, 4, 5].reduce((t, d) => t + Math.min(+(T.perRun[d] ?? 0), SETS.filter(s => s.d === d).length), 0) : SETS.length;
 
   function start() {
     if (!SETS.length) return;
@@ -371,7 +393,8 @@ footer{font-size:12px;color:var(--chalk-dim);text-align:center;opacity:.8}
     if (!T) return;
     document.body.dataset.look = T.look || "pitch";
     $("ruleCount").textContent = SETS.length || "…";
-    $("ruleStages").textContent = `sets, from ${stage(1).toLowerCase()} to ${stage(5).toLowerCase()}`;
+    const per = SETS.length && T.perRun ? `. Each go draws ${runLength()}, new ones first` : "";
+    $("ruleStages").textContent = `sets, from ${stage(1).toLowerCase()} to ${stage(5).toLowerCase()}${per}`;
     $("ruleLives").textContent = `lives. Every wrong pick ${word("lifeLost", "costs one")}`;
     $("kickoff").textContent = word("start", "Start");
     $("kickoff").disabled = !SETS.length;
