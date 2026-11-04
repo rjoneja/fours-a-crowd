@@ -6,6 +6,8 @@
 // You can paste the file name, or the whole Commons page URL. Leave "" for players without a photo yet.
 // A value can also be a list of candidates in order of preference; the first one that is on Commons
 // with a free licence is used, e.g. "Kolo Touré": ["File:First choice.jpg", "File:Backup.jpg"]
+// A candidate can be "wiki:<English Wikipedia article title>": the build asks Wikipedia for that article's main
+// free image and uses it, e.g. "Avocado": "wiki:Avocado" or ["File:My pick.jpg", "wiki:Avocado"].
 //
 // For each file this looks up the photographer and licence on Commons, keeps only freely licensed
 // images (CC BY, CC BY-SA, CC0, public domain, OGL and similar attribution licences), and writes the image URL + credit line the game shows.
@@ -77,6 +79,27 @@ export function parse(json, wanted) {
   return { out, errors };
 }
 
+// Main free image of English Wikipedia articles (pageimages only returns freely licensed images by default).
+export async function resolveWiki(titles) {
+  const out = {};
+  for (let i = 0; i < titles.length; i += 50) {
+    const batch = titles.slice(i, i + 50);
+    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=pageimages&piprop=name` +
+      `&titles=${encodeURIComponent(batch.join("|"))}`;
+    const r = await fetch(url, { headers: { "user-agent": UA, "api-user-agent": UA } });
+    if (!r.ok) throw new Error(`Wikipedia API ${r.status}`);
+    const j = await r.json();
+    const back = new Map();
+    for (const n of j.query?.normalized || []) back.set(n.to, n.from);
+    for (const rd of j.query?.redirects || []) back.set(rd.to, back.get(rd.from) || rd.from);
+    for (const page of j.query?.pages || []) {
+      const asked = back.get(page.title) || page.title;
+      if (page.pageimage) out[asked] = "File:" + page.pageimage;
+    }
+  }
+  return out;
+}
+
 async function lookup(titles) {
   const url = `${API}?action=query&format=json&formatversion=2&redirects=1&prop=imageinfo&iiprop=url|extmetadata` +
     `&iiextmetadatafilter=Artist|LicenseShortName&iiurlwidth=${WIDTH}&titles=${encodeURIComponent(titles.join("|"))}`;
@@ -102,7 +125,14 @@ async function buildTopic(topic) {
   const OUT = new URL("photos.json", dir);
   const { allPlayers, sorted } = syncSource(dir);
   const wanted = new Map();
-  const list = (v) => (Array.isArray(v) ? v : [v]).map(toTitle).filter(Boolean);
+  const raw = (v) => (Array.isArray(v) ? v : [v]).filter((x) => typeof x === "string" && x.trim());
+  const wikiTitles = [...new Set(Object.values(sorted).flatMap(raw).filter((x) => x.startsWith("wiki:")).map((x) => x.slice(5).trim()))];
+  let resolved = {};
+  if (wikiTitles.length && !unverified) {
+    try { resolved = await resolveWiki(wikiTitles); console.log(`  Wikipedia: ${Object.keys(resolved).length} of ${wikiTitles.length} article images found`); }
+    catch (err) { console.warn(`Couldn't reach Wikipedia (${err.message}). Keeping the existing photos.json files.`); return "offline"; }
+  }
+  const list = (v) => raw(v).flatMap((x) => (x.startsWith("wiki:") ? (resolved[x.slice(5).trim()] ? [resolved[x.slice(5).trim()]] : []) : [x])).map(toTitle).filter(Boolean);
   for (const [player, v] of Object.entries(sorted)) list(v).forEach((t, rank) => { if (!wanted.has(t)) wanted.set(t, { player, rank }); });
   const missing = allPlayers.filter((p) => !list(sorted[p]).length);
 
